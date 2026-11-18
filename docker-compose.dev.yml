@@ -1,0 +1,132 @@
+# GeneralStaff Development Docker Compose
+# Run with: docker-compose -f docker-compose.dev.yml up -d
+# This enables hot-reload for both API and Web
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: generalstaff-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: generalstaff
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d generalstaff"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - generalstaff-dev
+
+  # Redis Cache & Sessions
+  redis:
+    image: redis:7-alpine
+    container_name: generalstaff-redis-dev
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_dev_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - generalstaff-dev
+
+  # API Backend (Development with Hot Reload)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: builder
+    container_name: generalstaff-api-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/generalstaff?schema=public
+      REDIS_URL: redis://redis:6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CORS_ORIGIN: "*"
+      RATE_LIMIT_MAX: 1000
+      RATE_LIMIT_WINDOW: 60000
+      JWT_SECRET: dev-secret-key-change-in-production-min-32-chars
+      JWT_REFRESH_SECRET: dev-refresh-secret-key-change-in-production-min-32-chars
+      API_VERSION: 0.1.0
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./apps/api/src:/app/apps/api/src:ro
+      - ./packages/shared-types/src:/app/packages/shared-types/src:ro
+      - ./packages/calculation-engine/src:/app/packages/calculation-engine/src:ro
+      - ./packages/ui-components/src:/app/packages/ui-components/src:ro
+      - ./packages/shared-types/tsconfig.json:/app/packages/shared-types/tsconfig.json:ro
+      - ./packages/calculation-engine/tsconfig.json:/app/packages/calculation-engine/tsconfig.json:ro
+      - ./packages/ui-components/tsconfig.json:/app/packages/ui-components/tsconfig.json:ro
+      - ./apps/api/tsconfig.json:/app/apps/api/tsconfig.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: pnpm --filter @generalstaff/api dev
+    networks:
+      - generalstaff-dev
+
+  # Web Frontend (Development with Hot Reload)
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      target: builder
+    container_name: generalstaff-web-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      VITE_API_URL: http://localhost:3001
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./apps/web/src:/app/apps/web/src:ro
+      - ./apps/web/index.html:/app/apps/web/index.html:ro
+      - ./apps/web/vite.config.ts:/app/apps/web/vite.config.ts:ro
+      - ./apps/web/tsconfig.json:/app/apps/web/tsconfig.json:ro
+      - ./apps/web/tsconfig.node.json:/app/apps/web/tsconfig.node.json:ro
+      - ./apps/web/tailwind.config.ts:/app/apps/web/tailwind.config.ts:ro
+      - ./apps/web/postcss.config.js:/app/apps/web/postcss.config.js:ro
+      - ./packages/shared-types/src:/app/packages/shared-types/src:ro
+      - ./packages/calculation-engine/src:/app/packages/calculation-engine/src:ro
+      - ./packages/ui-components/src:/app/packages/ui-components/src:ro
+      - ./packages/shared-types/tsconfig.json:/app/packages/shared-types/tsconfig.json:ro
+      - ./packages/calculation-engine/tsconfig.json:/app/packages/calculation-engine/tsconfig.json:ro
+      - ./packages/ui-components/tsconfig.json:/app/packages/ui-components/tsconfig.json:ro
+    depends_on:
+      - api
+    command: pnpm --filter @generalstaff/web dev --host 0.0.0.0
+    networks:
+      - generalstaff-dev
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+
+networks:
+  generalstaff-dev:
+    driver: bridge

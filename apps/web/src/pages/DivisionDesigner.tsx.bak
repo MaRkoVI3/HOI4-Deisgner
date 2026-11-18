@@ -1,0 +1,1097 @@
+'use client';
+
+import { useState, useMemo, useCallback } from 'react';
+import {
+  Button,
+  Input,
+  Select,
+  Badge,
+  Tooltip,
+  TooltipProvider,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  StatCard,
+  DivisionCard,
+  EquipmentCard,
+  Alert,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  cn,
+} from '@generalstaff/ui-components';
+import {
+  Plus,
+  Minus,
+  Trash2,
+  Copy,
+  Download,
+  Upload,
+} from 'lucide-react';
+import type {
+  BattalionInstance,
+  SupportCompanyInstance,
+  EquipmentVariant,
+  EquipmentCategory,
+  CountryTag,
+  DivisionStats,
+  DivisionTemplate,
+  SupportCompanyType,
+} from '@generalstaff/shared-types';
+import {
+  calculateDivisionStats,
+  validateDivision,
+  isDivisionValid,
+  getValidationErrors,
+  getValidationWarnings,
+  STAT_DEFINITIONS,
+  type CalculationContext,
+} from '@generalstaff/calculation-engine/division';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+// Map shared-types to page-specific types
+type Regiment = BattalionInstance & { type: string; position: number };
+type SupportCompany = SupportCompanyInstance & { type: string };
+type Equipment = EquipmentVariant;
+
+// Local support types
+const SUPPORT_TYPES: Array<{ value: string; label: string }> = [
+  { value: 'engineer', label: 'Engineers' },
+  { value: 'recon', label: 'Recon' },
+  { value: 'logistics', label: 'Logistics' },
+  { value: 'signal', label: 'Signal' },
+  { value: 'maintenance', label: 'Maintenance' },
+  { value: 'hospital', label: 'Hospital' },
+  { value: 'military_police', label: 'Military Police' },
+  { value: 'anti_air', label: 'Anti-Air' },
+  { value: 'anti_tank', label: 'Anti-Tank' },
+  { value: 'artillery', label: 'Artillery' },
+];
+
+const REGIMENT_TYPES: Array<{ value: string; label: string }> = [
+  { value: 'infantry', label: 'Infantry' },
+  { value: 'artillery', label: 'Artillery' },
+  { value: 'armor', label: 'Armor' },
+  { value: 'special', label: 'Special' },
+  { value: 'armor', label: 'Armor' },
+  { value: 'special', label: 'Special' },
+];
+
+// Empty equipment assignments helper
+const emptyEquipmentAssignments: Record<EquipmentCategory, string | undefined> = {
+  infantry_equipment: undefined,
+  support_equipment: undefined,
+  artillery_equipment: undefined,
+  armor_equipment: undefined,
+  motorized_equipment: undefined,
+  mechanized_equipment: undefined,
+  anti_air_equipment: undefined,
+  anti_tank_equipment: undefined,
+  rocket_artillery_equipment: undefined,
+  small_arms: undefined,
+  support: undefined,
+  artillery: undefined,
+  anti_tank: undefined,
+  anti_air: undefined,
+  rocket_artillery: undefined,
+  light_tank: undefined,
+  medium_tank: undefined,
+  heavy_tank: undefined,
+  motorized: undefined,
+  mechanized: undefined,
+  recon: undefined,
+  engineer: undefined,
+  military_police: undefined,
+};
+
+// ============================================================================
+// Mock Data
+// ============================================================================
+
+const MOCK_EQUIPMENT: Equipment[] = [
+  // Infantry
+  {
+    id: 'inf_1918',
+    name: 'Infantry I',
+    category: 'infantry_equipment',
+    countryTag: 'GER',
+    year: 1918,
+    stats: {
+      softAttack: 4, hardAttack: 1, airAttack: 1, defense: 6, breakthrough: 2,
+      armor: 0, piercing: 0, reliability: 80, ap: 0, recon: 0, entrenchment: 2,
+      initiative: 4, suppression: 1, weight: 0.5, fuelConsumption: 0,
+    },
+    cost: 50,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'inf_1936',
+    name: 'Infantry II',
+    category: 'infantry_equipment',
+    countryTag: 'GER',
+    year: 1936,
+    stats: {
+      softAttack: 6, hardAttack: 1, airAttack: 1, defense: 8, breakthrough: 3,
+      armor: 0, piercing: 0, reliability: 85, ap: 0, recon: 0, entrenchment: 3,
+      initiative: 4, suppression: 1, weight: 0.5, fuelConsumption: 0,
+    },
+    cost: 60,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'inf_1939',
+    name: 'Infantry III',
+    category: 'infantry_equipment',
+    countryTag: 'GER',
+    year: 1939,
+    stats: {
+      softAttack: 8, hardAttack: 2, airAttack: 2, defense: 10, breakthrough: 4,
+      armor: 0, piercing: 0, reliability: 90, ap: 0, recon: 0, entrenchment: 4,
+      initiative: 4, suppression: 1, weight: 0.5, fuelConsumption: 0,
+    },
+    cost: 70,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+
+  // Artillery
+  {
+    id: 'art_1918',
+    name: 'Artillery I',
+    category: 'artillery_equipment',
+    countryTag: 'GER',
+    year: 1918,
+    stats: {
+      softAttack: 10, hardAttack: 3, airAttack: 1, defense: 2, breakthrough: 3,
+      armor: 0, piercing: 0, reliability: 75, ap: 0, recon: 0, entrenchment: 1,
+      initiative: 2, suppression: 0, weight: 1, fuelConsumption: 0,
+    },
+    cost: 80,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'art_1936',
+    name: 'Artillery II',
+    category: 'artillery_equipment',
+    countryTag: 'GER',
+    year: 1936,
+    stats: {
+      softAttack: 14, hardAttack: 5, airAttack: 2, defense: 3, breakthrough: 5,
+      armor: 0, piercing: 0, reliability: 80, ap: 0, recon: 0, entrenchment: 2,
+      initiative: 2, suppression: 0, weight: 1, fuelConsumption: 0,
+    },
+    cost: 100,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+
+  // Armor
+  {
+    id: 'lt_1934',
+    name: 'Light Tank I',
+    category: 'armor_equipment',
+    countryTag: 'GER',
+    year: 1934,
+    stats: {
+      softAttack: 6, hardAttack: 8, airAttack: 1, defense: 4, breakthrough: 8,
+      armor: 15, piercing: 20, reliability: 70, ap: 0, recon: 2, entrenchment: 0,
+      initiative: 10, suppression: 0, weight: 6, fuelConsumption: 1.5,
+    },
+    cost: 200,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'mt_1936',
+    name: 'Medium Tank I',
+    category: 'armor_equipment',
+    countryTag: 'GER',
+    year: 1936,
+    stats: {
+      softAttack: 8, hardAttack: 15, airAttack: 2, defense: 8, breakthrough: 15,
+      armor: 35, piercing: 40, reliability: 75, ap: 0, recon: 2, entrenchment: 0,
+      initiative: 8, suppression: 0, weight: 15, fuelConsumption: 3.0,
+    },
+    cost: 400,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'ht_1939',
+    name: 'Heavy Tank I',
+    category: 'armor_equipment',
+    countryTag: 'GER',
+    year: 1939,
+    stats: {
+      softAttack: 10, hardAttack: 25, airAttack: 3, defense: 15, breakthrough: 25,
+      armor: 80, piercing: 70, reliability: 65, ap: 0, recon: 1, entrenchment: 0,
+      initiative: 6, suppression: 0, weight: 35, fuelConsumption: 5.0,
+    },
+    cost: 800,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+
+  // Support
+  {
+    id: 'eng_1',
+    name: 'Engineer Company I',
+    category: 'support_equipment',
+    countryTag: 'GER',
+    year: 1936,
+    stats: {
+      softAttack: 1, hardAttack: 0, airAttack: 0, defense: 1, breakthrough: 2,
+      armor: 0, piercing: 0, reliability: 90, ap: 0, recon: 0, entrenchment: 10,
+      initiative: 0, suppression: 0, weight: 0.2, fuelConsumption: 0,
+    },
+    cost: 30,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'rec_1',
+    name: 'Recon Company I',
+    category: 'support_equipment',
+    countryTag: 'GER',
+    year: 1936,
+    stats: {
+      softAttack: 0, hardAttack: 0, airAttack: 0, defense: 0, breakthrough: 0,
+      armor: 0, piercing: 0, reliability: 95, ap: 0, recon: 10, entrenchment: 0,
+      initiative: 0, suppression: 0, weight: 0.1, fuelConsumption: 0.2,
+    },
+    cost: 25,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'log_1',
+    name: 'Logistics Company I',
+    category: 'support_equipment',
+    countryTag: 'GER',
+    year: 1936,
+    stats: {
+      softAttack: 0, hardAttack: 0, airAttack: 0, defense: 0, breakthrough: 0,
+      armor: 0, piercing: 0, reliability: 95, ap: 0, recon: 0, entrenchment: 0,
+      initiative: 0, suppression: 0, weight: 0.1, fuelConsumption: 0,
+    },
+    cost: 20,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'sig_1',
+    name: 'Signal Company I',
+    category: 'support_equipment',
+    countryTag: 'GER',
+    year: 1936,
+    stats: {
+      softAttack: 0, hardAttack: 0, airAttack: 0, defense: 0, breakthrough: 0,
+      armor: 0, piercing: 0, reliability: 95, ap: 0, recon: 2, entrenchment: 0,
+      initiative: 0, suppression: 0, weight: 0.1, fuelConsumption: 0,
+    },
+    cost: 25,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'maa_1',
+    name: 'Maintenance Company I',
+    category: 'support_equipment',
+    countryTag: 'GER',
+    year: 1936,
+    stats: {
+      softAttack: 0, hardAttack: 0, airAttack: 0, defense: 0, breakthrough: 0,
+      armor: 0, piercing: 0, reliability: 95, ap: 0, recon: 0, entrenchment: 0,
+      initiative: 0, suppression: 0, weight: 0.2, fuelConsumption: 0,
+    },
+    cost: 30,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+const COUNTRIES: CountryTag[] = [
+  { tag: 'GER', name: 'Germany', color: '#000000' },
+  { tag: 'SOV', name: 'Soviet Union', color: '#CC0000' },
+  { tag: 'USA', name: 'United States', color: '#002868' },
+  { tag: 'ENG', name: 'United Kingdom', color: '#00247D' },
+  { tag: 'FRA', name: 'France', color: '#0055A4' },
+  { tag: 'JPN', name: 'Japan', color: '#BC002D' },
+  { tag: 'ITA', name: 'Italy', color: '#009246' },
+];
+
+// ============================================================================
+// Division Designer Component
+// ============================================================================
+
+export default function DivisionDesigner() {
+  // State
+  const [templateName, setTemplateName] = useState('New Division');
+  const [country, setCountry] = useState('GER');
+  const [year, setYear] = useState(1936);
+  const [combatWidthBudget, setCombatWidthBudget] = useState(20);
+  const [regiments, setRegiments] = useState<Regiment[]>([
+    { id: '1', templateId: 'inf_1936', count: 7, equipmentAssignments: { ...emptyEquipmentAssignments }, type: 'infantry', position: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  ]);
+  const [supportCompanies, setSupportCompanies] = useState<SupportCompany[]>([]);
+  const [selectedRegimentIndex, setSelectedRegimentIndex] = useState<number | null>(null);
+  const [equipmentFilter, setEquipmentFilter] = useState('');
+  const [equipmentTypeFilter, setEquipmentTypeFilter] = useState<Equipment['category'] | 'all'>('all');
+  const [showAddRegimentDialog, setShowAddRegimentDialog] = useState(false);
+  const [showAddSupportDialog, setShowAddSupportDialog] = useState(false);
+  const [newRegimentEquipment, setNewRegimentEquipment] = useState('');
+  const [newRegimentCount, setNewRegimentCount] = useState(1);
+  const [newRegimentType, setNewRegimentType] = useState<Regiment['type']>('infantry');
+  const [newSupportType, setNewSupportType] = useState<SupportCompany['type']>('engineer');
+  const [newSupportEquipment, setNewSupportEquipment] = useState('');
+  const [activeTab, setActiveTab] = useState<'builder' | 'stats' | 'validation'>('builder');
+  const [savedTemplates, setSavedTemplates] = useState<DivisionTemplate[]>([]);
+  const [selectedDoctrineIds, setSelectedDoctrineIds] = useState<string[]>([]);
+  const [selectedSpiritIds, setSelectedSpiritIds] = useState<string[]>([]);
+
+  // Derived state
+  const equipmentMap = useMemo(() => new Map(MOCK_EQUIPMENT.map(eq => [eq.id, eq])), []);
+
+  const filteredEquipment = useMemo(() => {
+    return MOCK_EQUIPMENT.filter(eq => {
+      const matchesSearch = eq.name.toLowerCase().includes(equipmentFilter.toLowerCase());
+      const matchesType = equipmentTypeFilter === 'all' || eq.category === equipmentTypeFilter;
+      const matchesYear = eq.year <= year;
+      const matchesCountry = eq.countryTag === country || eq.countryTag === 'GER';
+      return matchesSearch && matchesType && matchesYear && matchesCountry;
+    });
+  }, [equipmentFilter, equipmentTypeFilter, year, country]);
+
+  const equipmentByType = useMemo(() => {
+    const grouped: Record<string, Equipment[]> = {};
+    filteredEquipment.forEach(eq => {
+      if (!grouped[eq.category]) grouped[eq.category] = [];
+      grouped[eq.category].push(eq);
+    });
+    return grouped;
+  }, [filteredEquipment]);
+
+  const context: CalculationContext = useMemo(() => {
+    return {
+      battalionTemplates: BATTALION_TEMPLATES,
+      supportCompanyTemplates: SUPPORT_COMPANY_TEMPLATES,
+      equipmentVariants: EQUIPMENT_VARIANTS,
+      doctrines: Object.fromEntries(DOCTRINES.map(d => [d.id, d])),
+      nationalSpirits: Object.fromEntries(NATIONAL_SPIRITS.map(s => [s.id, s])),
+      technologies: {},
+      country: COUNTRIES.find(c => c.tag === country),
+    };
+  }, [country]);
+
+  const template: DivisionTemplate = useMemo(() => ({
+    id: 'current',
+    name: templateName,
+    description: '',
+    country: COUNTRIES.find(c => c.tag === country) || { tag: country, name: country, color: '#000000' },
+    battalions: regiments.map(r => ({
+      ...r,
+      equipmentAssignments: r.equipmentAssignments || {},
+    })),
+    supportCompanies: supportCompanies.map(s => ({
+      ...s,
+      equipmentVariantId: s.equipmentVariantId || '',
+    })),
+    doctrineSelections: selectedDoctrineIds,
+    nationalSpirits: selectedSpiritIds,
+    technologies: [],
+    version: 1,
+    isPublic: false,
+    ownerId: 'user',
+    statsSnapshot: undefined,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }), [templateName, country, regiments, supportCompanies, selectedDoctrineIds, selectedSpiritIds]);
+
+  const stats = useMemo(() => {
+    return calculateDivisionStats(template, context);
+  }, [template, context]);
+
+  const validationResult = useMemo(() => {
+    const valid = isDivisionValid(stats);
+    const errors = getValidationErrors(stats);
+    const warnings = getValidationWarnings(stats);
+    return { valid, errors, warnings };
+  }, [stats]);
+
+  // Handlers
+  const addRegiment = useCallback(() => {
+    if (!newRegimentEquipment) return;
+    const newRegiment: Regiment = {
+      id: Date.now().toString(),
+      templateId: newRegimentEquipment,
+      count: newRegimentCount,
+      equipmentAssignments: { ...emptyEquipmentAssignments },
+      type: newRegimentType,
+      position: regiments.length,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setRegiments(prev => [...prev, newRegiment]);
+    setShowAddRegimentDialog(false);
+    setNewRegimentEquipment('');
+    setNewRegimentCount(1);
+  }, [newRegimentEquipment, newRegimentCount, newRegimentType, regiments.length]);
+
+  const removeRegiment = useCallback((index: number) => {
+    setRegiments(prev => prev.filter((_, i) => i !== index));
+    if (selectedRegimentIndex === index) setSelectedRegimentIndex(null);
+  }, [selectedRegimentIndex]);
+
+  const updateRegimentCount = useCallback((index: number, count: number) => {
+    setRegiments(prev => prev.map((r, i) => i === index ? { ...r, count: Math.max(1, count) } : r));
+  }, []);
+
+  const updateRegimentEquipment = useCallback((index: number, equipmentId: string) => {
+    setRegiments(prev => prev.map((r, i) => i === index ? { ...r, templateId: equipmentId } : r));
+  }, []);
+
+  const addSupportCompany = useCallback(() => {
+    if (!newSupportEquipment) return;
+    const newSupport: SupportCompany = {
+      id: Date.now().toString(),
+      templateId: newSupportType,
+      equipmentVariantId: newSupportEquipment,
+      type: newSupportType,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setSupportCompanies(prev => [...prev, newSupport]);
+    setShowAddSupportDialog(false);
+    setNewSupportEquipment('');
+  }, [newSupportEquipment, newSupportType]);
+
+  const removeSupportCompany = useCallback((id: string) => {
+    setSupportCompanies(prev => prev.filter(s => s.id !== id));
+  }, []);
+
+  const saveTemplate = useCallback(() => {
+    const newTemplate: DivisionTemplate = {
+      ...template,
+      id: Date.now().toString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setSavedTemplates(prev => [...prev, newTemplate]);
+  }, [template]);
+
+  const loadTemplate = useCallback((savedTemplate: DivisionTemplate) => {
+    setTemplateName(savedTemplate.name);
+    setCountry(savedTemplate.country?.tag || 'GER');
+    setRegiments(savedTemplate.battalions.map(b => ({
+      ...b,
+      equipmentAssignments: b.equipmentAssignments || {},
+      type: b.templateId.split('_')[0] || 'infantry',
+      position: 0,
+    })));
+    setSupportCompanies(savedTemplate.supportCompanies.map(s => ({
+      ...s,
+      equipmentVariantId: s.equipmentVariantId || '',
+      type: s.templateId,
+    })));
+    setActiveTab('builder');
+  }, []);
+
+  const duplicateTemplate = useCallback((savedTemplate: DivisionTemplate) => {
+    const newTemplate: DivisionTemplate = {
+      ...savedTemplate,
+      id: Date.now().toString(),
+      name: `${savedTemplate.name} (Copy)`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setSavedTemplates(prev => [...prev, newTemplate]);
+  }, []);
+
+  const deleteTemplate = useCallback((id: string) => {
+    setSavedTemplates(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  const exportTemplate = useCallback(() => {
+    const data = JSON.stringify(template, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${templateName.replace(/\s+/g, '_')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [template, templateName]);
+
+  // Combat width indicator color
+  const widthPercent = Math.min(100, (stats.combatWidth / combatWidthBudget) * 100);
+  const widthColor = stats.combatWidth > combatWidthBudget ? 'bg-red-500' :
+    stats.combatWidth > combatWidthBudget * 0.8 ? 'bg-yellow-500' : 'bg-green-500';
+
+  return (
+    <TooltipProvider>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Division Designer</h1>
+            <p className="text-gray-500 dark:text-gray-400">Design and optimize division templates</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Select
+              label="Country"
+              value={country}
+              onChange={e => setCountry(e.target.value)}
+              options={COUNTRIES.map(c => ({ value: c.tag, label: c.name }))}
+              className="w-48"
+            />
+            <Input
+              label="Year"
+              type="number"
+              value={year}
+              onChange={e => setYear(Number(e.target.value))}
+              min={1918}
+              max={1950}
+              className="w-32"
+            />
+            <Input
+              label="Width Budget"
+              type="number"
+              value={combatWidthBudget}
+              onChange={e => setCombatWidthBudget(Number(e.target.value))}
+              min={10}
+              max={80}
+              className="w-32"
+            />
+          </div>
+        </div>
+
+        {/* Combat Width Bar */}
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-medium text-gray-700 dark:text-gray-300">Combat Width</span>
+            <span className="font-mono text-lg font-bold text-gray-900 dark:text-gray-100">
+              {stats.combatWidth} / {combatWidthBudget}
+            </span>
+          </div>
+          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div
+              className={widthColor}
+              style={{ width: `${widthPercent}%`, transition: 'width 0.3s ease' }}
+            />
+          </div>
+          <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <span>0</span>
+            <span>{combatWidthBudget / 2}</span>
+            <span>{combatWidthBudget}</span>
+          </div>
+        </Card>
+
+        {/* Main Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Panel - Builder */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Template Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Division Template</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <Input
+                    label="Template Name"
+                    value={templateName}
+                    onChange={e => setTemplateName(e.target.value)}
+                    placeholder="Enter template name"
+                  />
+                  <Select
+                    label="Country"
+                    value={country}
+                    onChange={e => setCountry(e.target.value)}
+                    options={COUNTRIES.map(c => ({ value: c.tag, label: c.name }))}
+                  />
+                  <Input
+                    label="Year"
+                    type="number"
+                    value={year}
+                    onChange={e => setYear(Number(e.target.value))}
+                    min={1918}
+                    max={1950}
+                  />
+                </div>
+
+                {/* Regiments */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-gray-900 dark:text-gray-100">
+                      Regiments ({regiments.reduce((sum, r) => sum + r.count, 0)} battalions)
+                    </h3>
+                    <Button size="sm" onClick={() => setShowAddRegimentDialog(true)}>
+                      <Plus className="h-4 w-4 mr-1" /> Add Regiment
+                    </Button>
+                  </div>
+
+                  {regiments.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
+                      <Plus className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p>No regiments added yet. Click "Add Regiment" to start building your division.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {regiments.map((regiment, index) => {
+                        const equipment = equipmentMap.get(regiment.templateId);
+                        return (
+                          <Card
+                            key={regiment.id}
+                            className={cn('border p-3', selectedRegimentIndex === index ? 'ring-2 ring-primary-500' : '', 'cursor-pointer')}
+                            onClick={() => setSelectedRegimentIndex(selectedRegimentIndex === index ? null : index)}
+                          >
+                            <div className="flex items-center gap-4">
+                              <Badge
+                                variant={regiment.type === 'infantry' ? 'default' : regiment.type === 'artillery' ? 'destructive' : regiment.type === 'armor' ? 'destructive' : 'secondary'}
+                              >
+                                {regiment.type.charAt(0).toUpperCase() + regiment.type.slice(1)}
+                              </Badge>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                                  {equipment?.name || 'Unknown Equipment'}
+                                </p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                  {equipment?.category} · {equipment?.year}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); updateRegimentCount(index, regiment.count - 1); }} aria-label="Decrease count">
+                                  <Minus className="h-4 w-4" />
+                                </Button>
+                                <span className="w-12 text-center font-mono text-lg">{regiment.count}</span>
+                                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); updateRegimentCount(index, regiment.count + 1); }} aria-label="Increase count">
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                                <Tooltip content="Change equipment">
+                                  <Select
+                                    value={regiment.templateId}
+                                    onChange={e => updateRegimentEquipment(index, e.target.value)}
+                                    options={Object.values(equipmentByType).flat().filter(eq => eq.category === regiment.type).map(eq => ({ value: eq.id, label: eq.name }))}
+                                    className="w-48"
+                                  />
+                                </Tooltip>
+                                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); removeRegiment(index); }} aria-label="Remove regiment">
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </div>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Support Companies */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-gray-900 dark:text-gray-100">Support Companies</h3>
+                    <Button size="sm" onClick={() => setShowAddSupportDialog(true)}>
+                      <Plus className="h-4 w-4 mr-1" /> Add Support
+                    </Button>
+                  </div>
+
+                  {supportCompanies.length === 0 ? (
+                    <div className="text-center py-6 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
+                      <p>No support companies added.</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {supportCompanies.map((support) => {
+                        const equipment = equipmentMap.get(support.equipmentVariantId || '');
+                        return (
+                          <Badge key={support.id} variant="secondary" className="gap-1">
+                            {equipment?.name || 'Unknown'}
+                            <span onClick={() => removeSupportCompany(support.id)} className="cursor-pointer hover:text-red-500">
+                              <Trash2 className="h-3 w-3" />
+                            </span>
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Division Preview Card */}
+            <DivisionCard
+              name={template.name}
+              country={template.country?.name || 'Unknown'}
+              combatWidth={stats.combatWidth}
+              cost={{ ic: Math.round(stats.icCost), manpower: Math.round(stats.manpower) }}
+              stats={{
+                softAttack: stats.softAttack,
+                hardAttack: stats.hardAttack,
+                armor: stats.armor,
+                piercing: stats.piercing,
+                defense: stats.defense,
+                breakthrough: stats.breakthrough,
+                organization: stats.organization,
+                hp: stats.hp,
+                recon: stats.recon,
+                suppression: stats.suppression,
+                weight: stats.weight / 1000,
+                supplyUse: stats.supplyConsumption,
+                fuelUse: stats.fuelConsumption,
+                hardness: stats.hardness,
+              }}
+              regiments={template.battalions.map(r => ({
+                type: r.templateId.split('_')[0] || 'infantry',
+                count: r.count,
+                equipmentName: equipmentMap.get(r.templateId)?.name || 'Unknown',
+              }))}
+              supportCompanies={template.supportCompanies.map(s => ({
+                type: s.templateId,
+                equipmentName: equipmentMap.get(s.equipmentVariantId || '')?.name || 'Unknown',
+              }))}
+              validation={{
+                valid: validationResult.valid,
+                errors: validationResult.errors.map(e => e.message),
+                warnings: validationResult.warnings.map(w => w.message),
+              }}
+            />
+          </div>
+
+          {/* Right Panel - Equipment Picker & Stats */}
+          <div className="space-y-6">
+            {/* Equipment Picker */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Available Equipment</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <Input
+                    placeholder="Search equipment..."
+                    value={equipmentFilter}
+                    onChange={e => setEquipmentFilter(e.target.value)}
+                  />
+                  <Select
+                    label="Type"
+                    value={equipmentTypeFilter}
+                    onChange={e => setEquipmentTypeFilter(e.target.value as Equipment['category'] | 'all')}
+                    options={[
+                      { value: 'all', label: 'All Types' },
+                      { value: 'infantry_equipment', label: 'Infantry' },
+                      { value: 'artillery_equipment', label: 'Artillery' },
+                      { value: 'armor_equipment', label: 'Armor' },
+                      { value: 'support_equipment', label: 'Support' },
+                    ]}
+                  />
+                </div>
+
+                <div className="max-h-96 overflow-y-auto space-y-2">
+                  {Object.entries(equipmentByType).map(([type, items]) => (
+                    <div key={type} className="space-y-1">
+                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 px-1">
+                        {type.replace('_equipment', '').charAt(0).toUpperCase() + type.replace('_equipment', '').slice(1)}
+                      </h4>
+                      {items.map(eq => {
+                        const eqStats = eq.stats;
+                        return (
+                          <EquipmentCard
+                            key={eq.id}
+                            name={eq.name}
+                            type={eq.category}
+                            archetype={eq.category}
+                            year={eq.year}
+                            country={eq.countryTag}
+                            cost={{ ic: eq.cost, manpower: 1000 }}
+                            stats={{
+                              softAttack: eqStats.softAttack || 0,
+                              hardAttack: eqStats.hardAttack || 0,
+                              armor: eqStats.armor || 0,
+                              piercing: eqStats.piercing || 0,
+                              defense: eqStats.defense || 0,
+                              breakthrough: eqStats.breakthrough || 0,
+                              organization: eqStats.organization || 0,
+                              maxSpeed: eqStats.speed || 0,
+                              reliability: eqStats.reliability || 0,
+                              weight: eqStats.weight || 0,
+                              supplyConsumption: eqStats.supplyConsumption || 0,
+                              fuelConsumption: eqStats.fuelConsumption || 0,
+                            }}
+                            onClick={() => {
+                              if (showAddRegimentDialog) {
+                                setNewRegimentEquipment(eq.id);
+                                setNewRegimentType(eq.category as Regiment['type']);
+                              }
+                              if (showAddSupportDialog && eq.category === 'support_equipment') {
+                                setNewSupportEquipment(eq.id);
+                              }
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  ))}
+
+                  {filteredEquipment.length === 0 && (
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                      No equipment matches your filters.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Quick Stats */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Key Statistics</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <StatCard label="IC Cost" value={Math.round(stats.icCost).toLocaleString()} unit="IC" color="primary" size="sm" />
+                  <StatCard label="Manpower" value={Math.round(stats.manpower).toLocaleString()} unit="MP" color="default" size="sm" />
+                  <StatCard label="Organization" value={stats.organization.toFixed(1)} color="info" size="sm" />
+                  <StatCard label="HP" value={Math.round(stats.hp).toLocaleString()} color="success" size="sm" />
+                  <StatCard label="Soft Attack" value={stats.softAttack.toFixed(1)} color="danger" size="sm" />
+                  <StatCard label="Hard Attack" value={stats.hardAttack.toFixed(1)} color="danger" size="sm" />
+                  <StatCard label="Armor" value={stats.armor.toFixed(1)} color="primary" size="sm" />
+                  <StatCard label="Piercing" value={stats.piercing.toFixed(1)} color="warning" size="sm" />
+                  <StatCard label="Defense" value={stats.defense.toFixed(1)} color="success" size="sm" />
+                  <StatCard label="Breakthrough" value={stats.breakthrough.toFixed(1)} color="warning" size="sm" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Bottom Tabs - Detailed Stats & Validation */}
+        <Card>
+          <div className="border-b">
+            <nav className="flex gap-4" aria-label="Tabs">
+              <button
+                className={cn('pb-4 text-sm font-medium border-b-2 transition-colors', activeTab === 'builder' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')}
+                onClick={() => setActiveTab('builder')}
+              >
+                Builder
+              </button>
+              <button
+                className={cn('pb-4 text-sm font-medium border-b-2 transition-colors', activeTab === 'stats' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')}
+                onClick={() => setActiveTab('stats')}
+              >
+                Detailed Stats
+              </button>
+              <button
+                className={cn('pb-4 text-sm font-medium border-b-2 transition-colors', activeTab === 'validation' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')}
+                onClick={() => setActiveTab('validation')}
+              >
+                Validation
+              </button>
+            </nav>
+          </div>
+
+          {activeTab === 'builder' && (
+            <div className="p-4">
+              <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+                Use the builder panel on the left to design your division.
+              </p>
+            </div>
+          )}
+
+          {activeTab === 'stats' && (
+            <div className="p-4">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b dark:border-gray-700">
+                      <th className="text-left pb-2 font-medium text-gray-500 dark:text-gray-400">Stat</th>
+                      <th className="text-right pb-2 font-medium text-gray-500 dark:text-gray-400">Value</th>
+                      <th className="text-left pb-2 font-medium text-gray-500 dark:text-gray-400">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(Object.keys(STAT_DEFINITIONS) as (keyof DivisionStats)[]).map(defKey => {
+                      const def = STAT_DEFINITIONS[defKey];
+                      const value = stats[defKey];
+                      if (value === undefined) return null;
+                      return (
+                        <tr key={defKey} className="border-b dark:border-gray-700/50">
+                          <td className="py-2 font-medium text-gray-900 dark:text-gray-100">{def.label}</td>
+                            <td className="py-2 text-right font-mono font-semibold text-gray-900 dark:text-gray-100">
+                              {def.format(value as number)}
+                            </td>
+                            <td className="py-2 text-gray-500 dark:text-gray-400">{def.description}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'validation' && (
+              <div className="p-4">
+                {validationResult.valid ? (
+                  <Alert variant="success" title="Template Valid" description="This division template passes all validation checks." />
+                ) : (
+                  <Alert variant="destructive" title="Template Invalid" description="Please fix the following errors:" />
+                )}
+
+                {validationResult.errors.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {validationResult.errors.map((error, index) => (
+                      <Alert key={index} variant="destructive" title={error.message} className="text-sm" />
+                    ))}
+                  </div>
+                )}
+
+                {validationResult.warnings.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <h4 className="font-medium text-gray-900 dark:text-gray-100">Warnings</h4>
+                    {validationResult.warnings.map((warning, index) => (
+                      <Alert key={index} variant="warning" title={warning.message} className="text-sm" />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+          </Card>
+
+          <div className="space-y-4 mt-4">
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Button variant="secondary" onClick={saveTemplate}>
+              <Download className="h-4 w-4 mr-1" /> Save Template
+            </Button>
+            <Button variant="outline" onClick={exportTemplate}>
+              <Upload className="h-4 w-4 mr-1" /> Export JSON
+            </Button>
+            <Button variant="outline">
+              <Copy className="h-4 w-4 mr-1" /> Duplicate
+            </Button>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {savedTemplates.length} saved template{savedTemplates.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+        </div>
+
+        {/* Saved Templates */}
+        {savedTemplates.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Saved Templates</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {savedTemplates.map(savedTemplate => (
+                  <Card key={savedTemplate.id} className="border p-3 transition-shadow hover:shadow-lg">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-gray-900 dark:text-gray-100 truncate">{savedTemplate.name}</h4>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {savedTemplate.country?.tag || 'Unknown'} · {savedTemplate.battalions.length} regiments
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => loadTemplate(savedTemplate)} aria-label="Load template">
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => duplicateTemplate(savedTemplate)} aria-label="Duplicate template">
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => deleteTemplate(savedTemplate.id)} aria-label="Delete template">
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Add Regiment Dialog */}
+        {showAddRegimentDialog && (
+          <Dialog>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Regiment</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 p-4">
+                <Select
+                  label="Regiment Type"
+                  value={newRegimentType}
+                  onChange={e => setNewRegimentType(e.target.value)}
+                  options={REGIMENT_TYPES}
+                />
+                <Select
+                  label="Equipment"
+                  value={newRegimentEquipment}
+                  onChange={e => setNewRegimentEquipment(e.target.value)}
+                  options={Object.values(equipmentByType).flat().filter(eq => eq.category === newRegimentType).map(eq => ({ value: eq.id, label: eq.name }))}
+                  placeholder="Select equipment"
+                />
+                <Input
+                  label="Count"
+                  type="number"
+                  value={newRegimentCount}
+                  onChange={e => setNewRegimentCount(Math.max(1, Number(e.target.value)))}
+                  min={1}
+                  max={30}
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="secondary" onClick={() => setShowAddRegimentDialog(false)}>Cancel</Button>
+                <Button onClick={addRegiment} disabled={!newRegimentEquipment}>Add Regiment</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Add Support Dialog */}
+        {showAddSupportDialog && (
+          <Dialog>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Support Company</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 p-4">
+                <Select
+                  label="Support Type"
+                  value={newSupportType}
+                  onChange={e => setNewSupportType(e.target.value)}
+                  options={SUPPORT_TYPES}
+                />
+                <Select
+                  label="Equipment"
+                  value={newSupportEquipment}
+                  onChange={e => setNewSupportEquipment(e.target.value)}
+                  options={Object.values(equipmentByType).flat().filter(eq => eq.category === 'support_equipment').map(eq => ({ value: eq.id, label: eq.name }))}
+                  placeholder="Select equipment"
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="secondary" onClick={() => setShowAddSupportDialog(false)}>Cancel</Button>
+                <Button onClick={addSupportCompany} disabled={!newSupportEquipment}>Add Support</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+    </TooltipProvider>
+  );
+}

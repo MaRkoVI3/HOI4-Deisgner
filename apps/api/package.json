@@ -6,17 +6,35 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . --ext ts --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext ts --report-unused-disable-directives --max-warnings 0",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@generalstaff/shared-types": "*",
-    "@generalstaff/calculation-engine": "*",
-    "fastify": "^4.28.1",
-    "zod": "^3.23.8"
+    "@anthropic-ai/sdk": "^0.24.0",
+    "@fastify/cors": "^9.0.1",
+    "@fastify/rate-limit": "^9.1.0",
+    "@fastify/swagger": "^9.9.5",
+    "@fastify/swagger-ui": "^3.1.0",
+    "@fastify/type-provider-zod": "^1.0.3",
+    "@generalstaff/calculation-engine": "file:../../packages/calculation-engine",
+    "@generalstaff/shared-types": "file:../../packages/shared-types",
+    "fastify": "^5.12.8",
+    "ioredis": "^5.4.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^20.14.11",
+    "@types/supertest": "^6.0.2",
+    "@vitest/coverage-v8": "^2.0.0",
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "pino-pretty": "^11.2.1",
+    "supertest": "^7.0.0",
     "tsx": "^4.16.2",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^2.0.0"
   }
 }

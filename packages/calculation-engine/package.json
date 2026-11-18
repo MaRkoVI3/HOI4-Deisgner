@@ -1,0 +1,67 @@
+{
+  "name": "@generalstaff/calculation-engine",
+  "version": "0.0.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./division": {
+      "types": "./dist/division.d.ts",
+      "import": "./dist/division.js",
+      "require": "./dist/division.js"
+    },
+    "./tank": {
+      "types": "./dist/tank.d.ts",
+      "import": "./dist/tank.js",
+      "require": "./dist/tank.js"
+    },
+    "./air": {
+      "types": "./dist/air.d.ts",
+      "import": "./dist/air.js",
+      "require": "./dist/air.js"
+    },
+    "./navy": {
+      "types": "./dist/navy.d.ts",
+      "import": "./dist/navy.js",
+      "require": "./dist/navy.js"
+    },
+    "./equipment": {
+      "types": "./dist/equipment.d.ts",
+      "import": "./dist/equipment.js",
+      "require": "./dist/equipment.js"
+    },
+    "./doctrine": {
+      "types": "./dist/doctrine.d.ts",
+      "import": "./dist/doctrine.js",
+      "require": "./dist/doctrine.js"
+    },
+    "./national-spirit": {
+      "types": "./dist/national-spirit.d.ts",
+      "import": "./dist/national-spirit.js",
+      "require": "./dist/national-spirit.js"
+    },
+    "./modifiers": {
+      "types": "./dist/modifiers.d.ts",
+      "import": "./dist/modifiers.js",
+      "require": "./dist/modifiers.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "@generalstaff/shared-types": "file:../shared-types"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0",
+    "eslint": "^9.0.0"
+  }
+}

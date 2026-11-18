@@ -1,0 +1,70 @@
+# Example terraform.tvfars values
+# Copy to terraform.tfvars and customize
+
+aws_region = "us-east-1"
+environment = "production"
+project_name = "myapp"
+domain_name = "example.com"
+
+# VPC
+vpc_cidr = "10.0.0.0/16"
+public_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+private_subnet_cidrs = ["10.0.11.0/24", "10.0.12.0/24", "10.0.13.0/24"]
+database_subnet_cidrs = ["10.0.21.0/24", "10.0.22.0/24", "10.0.23.0/24"]
+enable_nat_gateway = true
+enable_flow_logs = true
+flow_log_destination_arn = "arn:aws:logs:us-east-1:123456789012:log-group:/aws/vpc/flowlogs"
+enable_vpc_endpoints = true
+
+# RDS
+db_engine = "postgres"
+db_engine_version = "15.4"
+db_instance_class = "db.t3.small"
+db_allocated_storage = 50
+db_max_allocated_storage = 200
+db_name = "myapp"
+db_master_username = "admin"
+db_backup_retention_period = 14
+db_multi_az = true
+db_deletion_protection = true
+db_enable_proxy = true
+db_create_read_replica = true
+db_read_replica_count = 2
+db_performance_insights_enabled = true
+db_monitoring_interval = 60
+
+# ALB
+alb_internal = false
+alb_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+alb_target_port = 8080
+alb_target_protocol = "HTTP"
+alb_health_check_path = "/health"
+alb_health_check_matcher = "200"
+alb_enable_access_logs = true
+alb_access_logs_bucket = "my-alb-access-logs-bucket"
+alb_enable_deletion_protection = true
+alb_waf_web_acl_arn = ""
+alb_enable_shield_protection = true
+alb_allowed_cidr_blocks = ["0.0.0.0/0"]
+
+# ECS
+ecs_enable_container_insights = true
+ecs_enable_execute_command = true
+ecs_capacity_providers = ["FARGATE", "FARGATE_SPOT"]
+ecs_log_retention_days = 30
+ecs_task_cpu = "512"
+ecs_task_memory = "1024"
+ecs_container_name = "app"
+ecs_container_image = "123456789012.dkr.ecr.us-east-1.amazonaws.com/myapp:latest"
+ecs_container_port = 8080
+ecs_desired_count = 3
+ecs_enable_service_discovery = false
+ecs_service_discovery_namespace_id = ""
+ecs_enable_autoscaling = true
+ecs_min_capacity = 2
+ecs_max_capacity = 20
+ecs_scale_up_target_value = 70
+ecs_scale_down_target_value = 70
+
+# Route53
+route53_enable_dnssec = true

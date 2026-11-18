@@ -1,0 +1,85 @@
+# Multi-stage Dockerfile for GeneralStaff API
+# Stage 1: Build dependencies and compile TypeScript
+FROM node:20-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache python3 make g++
+
+WORKDIR /app
+
+# Copy package files for dependency installation
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY packages/shared-types/package.json ./packages/shared-types/
+COPY packages/calculation-engine/package.json ./packages/calculation-engine/
+COPY packages/ui-components/package.json ./packages/ui-components/
+COPY apps/api/package.json ./apps/api/
+
+# Install dependencies using pnpm
+RUN corepack enable pnpm && pnpm install --frozen-lockfile
+
+# Copy source code
+COPY packages/shared-types/src ./packages/shared-types/src
+COPY packages/shared-types/tsconfig.json ./packages/shared-types/
+COPY packages/calculation-engine/src ./packages/calculation-engine/src
+COPY packages/calculation-engine/tsconfig.json ./packages/calculation-engine/
+COPY packages/ui-components/src ./packages/ui-components/src
+COPY packages/ui-components/tsconfig.json ./packages/ui-components/
+COPY apps/api/src ./apps/api/src
+COPY apps/api/tsconfig.json ./apps/api/
+
+# Build all packages
+RUN pnpm --filter @generalstaff/shared-types build \
+    && pnpm --filter @generalstaff/calculation-engine build \
+    && pnpm --filter @generalstaff/ui-components build \
+    && pnpm --filter @generalstaff/api build
+
+# Stage 2: Production runtime
+FROM node:20-alpine AS runner
+
+# Install runtime dependencies
+RUN apk add --no-cache dumb-init
+
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+
+# Copy package files
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY packages/shared-types/package.json ./packages/shared-types/
+COPY packages/calculation-engine/package.json ./packages/calculation-engine/
+COPY packages/ui-components/package.json ./packages/ui-components/
+COPY apps/api/package.json ./apps/api/
+
+# Install production dependencies only
+RUN corepack enable pnpm && pnpm install --frozen-lockfile --prod
+
+# Copy built artifacts from builder
+COPY --from=builder /app/packages/shared-types/dist ./packages/shared-types/dist
+COPY --from=builder /app/packages/calculation-engine/dist ./packages/calculation-engine/dist
+COPY --from=builder /app/packages/ui-components/dist ./packages/ui-components/dist
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+
+# Copy tsconfig for type references (if needed at runtime)
+COPY --from=builder /app/packages/shared-types/tsconfig.json ./packages/shared-types/
+COPY --from=builder /app/packages/calculation-engine/tsconfig.json ./packages/calculation-engine/
+COPY --from=builder /app/packages/ui-components/tsconfig.json ./packages/ui-components/
+COPY --from=builder /app/apps/api/tsconfig.json ./apps/api/
+
+# Change ownership to nodejs user
+RUN chown -R nodejs:nodejs /app
+
+USER nodejs
+
+# Expose API port
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
+
+# Start the application
+CMD ["node", "apps/api/dist/index.js"]

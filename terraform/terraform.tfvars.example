@@ -1,0 +1,88 @@
+# GeneralStaff Terraform Variables - Example Configuration
+# Copy this file to terraform.tfvars and fill in your values
+# DO NOT commit terraform.tfvars with real secrets to version control!
+
+#############################
+# Required Settings
+#############################
+
+# AWS region (must match where your resources will be created)
+aws_region = "us-east-1"
+
+# Environment: dev, staging, or prod
+environment = "dev"
+
+# Your domain name (must have a Route53 hosted zone)
+domain_name = "generalstaff.example.com"
+
+#############################
+# SSL Certificate
+#############################
+
+# Option 1: Use existing ACM certificate (recommended for prod)
+# certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# Option 2: Let Terraform create one via DNS validation (leave empty)
+certificate_arn = ""
+
+#############################
+# Database (RDS PostgreSQL)
+#############################
+
+# Instance class - use larger for production
+# dev: db.t3.micro, staging: db.t3.small, prod: db.r6g.large or larger
+db_instance_class = "db.t3.micro"
+
+# Storage in GB
+db_allocated_storage = 20
+db_max_allocated_storage = 100
+
+# Database credentials (USE SSM PARAMETER STORE IN PRODUCTION!)
+# For dev only - generate random password if empty
+db_username = "admin"
+db_password = ""  # Leave empty to auto-generate, or set explicitly
+
+# Enable deletion protection for production
+enable_deletion_protection = false
+
+#############################
+# Redis (ElastiCache)
+#############################
+
+# Node type - use larger for production
+# dev: cache.t3.micro, staging: cache.t3.small, prod: cache.r6g.large or larger
+redis_node_type = "cache.t3.micro"
+
+# Number of nodes (1 for dev, 2+ for prod with replication)
+redis_num_nodes = 1
+
+# Redis auth token (USE SSM PARAMETER STORE IN PRODUCTION!)
+redis_auth_token = ""  # Leave empty to auto-generate
+
+#############################
+# ECS Fargate Services
+#############################
+
+# Task resources
+ecs_cpu = 256
+ecs_memory = 512
+
+# Desired task count (per service)
+ecs_desired_count = 2
+
+# Maximum tasks for autoscaling
+ecs_max_capacity = 10
+
+# Container images (set these to your ECR image URIs)
+# container_image_api = "123456789012.dkr.ecr.us-east-1.amazonaws.com/generalstaff/api:v1.0.0"
+# container_image_web = "123456789012.dkr.ecr.us-east-1.amazonaws.com/generalstaff/web:v1.0.0"
+container_image_api = ""
+container_image_web = ""
+
+#############################
+# Network Security
+#############################
+
+# Restrict in production! Example for office IP:
+# allowed_cidr_blocks = ["203.0.113.0/24"]
+allowed_cidr_blocks = ["0.0.0.0/0"]
